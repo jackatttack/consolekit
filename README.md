@@ -6,16 +6,20 @@ One function call docks a `ui` view in the console. It stays put while the text 
 
 ## Install
 
-Paste this into the Pythonista console and press return:
+Paste this into a new script in Pythonista and run it:
 
-    import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/jackatttack/consolekit/main/install.py').read(), {'__name__': '__main__'})
+    import urllib.request
+    url = ('https://raw.githubusercontent.com/'
+           'jackatttack/consolekit/main/install.py')
+    source = urllib.request.urlopen(url).read()
+    exec(compile(source, 'install.py', 'exec'), {'__name__': '__main__'})
 
-That does two things:
+It does two things:
 
 - puts `consolekit.py` in your `site-packages-3` folder, so `import consolekit` works in any script
 - adds a `ConsoleKit` folder with a demo and examples, and opens the demo
 
-To update, run the same line again.
+To update, run the same script again.
 
 ## Your first panel
 
