@@ -2,7 +2,7 @@
 
 Put your own panels, buttons and pictures inside Pythonista's console.
 
-One function call docks a `ui` view in the console. It stays put while the text scrolls, survives the Clear button, and keeps working after your script finishes. Every panel can be minimised to a small square and brought back with a tap.
+One function call docks a `ui` view in the console. It stays put while the text scrolls, survives the Clear button, and keeps working after your script finishes. Minimised panels wait as squares in a tray along the bottom, one tap away.
 
 ## Install
 
@@ -63,6 +63,7 @@ Run `ConsoleKit/consolekit_demo.py` and tap an example to try it. Each one is a 
 - `icon`: an emoji for the minimised square. Without one, the square shows the first letter of the title.
 - `key`: a name for the panel if you'd rather not use the title (see below)
 - `chrome=False`: no header, just your view
+- `exclusive=False`: let this panel open alongside others, instead of tucking them into the tray
 - `on_close`: a function to call when the panel closes
 
 `consolekit.show(thing, ...)` takes the same options.
@@ -80,7 +81,7 @@ And two tidy-up functions: `consolekit.close(key)` and `consolekit.close_all()`.
 
 - **Running a script again replaces its panels** instead of adding more. Panels are matched by title (or `key`), so give two panels different titles if you want both.
 - **Keep what your panel needs on `self`.** When your script finishes, Pythonista clears its variables, but your panel keeps running. Inside button actions and `update()`, use things you stored on `self` rather than the script's global names. The counter and stopwatch examples show how.
-- **Minimised panels line up as squares** on the right of the console. Tap one to bring its panel back.
+- **One panel is open at a time.** Opening a panel tucks the others into a tray along the bottom of the console. Tap a square in the tray to switch back.
 - **Panels last until you close them** or quit Pythonista.
 - **It relies on unofficial parts of Pythonista.** A future Pythonista update could change them. If consolekit can't find the console, your panel opens as a normal sheet instead, so your script still works.
 

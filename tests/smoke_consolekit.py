@@ -36,11 +36,25 @@ check('too tall is clamped to the top margin',
 check('tiny console keeps the minimum height',
       ck.panel_frame((0, 0, 400, 150))[3] == ck.MINIMUM_PANEL_HEIGHT)
 
-first = ck.square_origin(console, 0)
-second = ck.square_origin(console, 1)
-check('first square sits on the input bar', first[1] + ck.SQUARE_SIZE == input_bar_top)
-check('squares stack upwards',
-      second[0] == first[0] and second[1] == first[1] - ck.SQUARE_SIZE - ck.SQUARE_GAP)
+tray = ck.tray_frame(console)
+check('tray sits on the input bar', tray[1] + tray[3] == input_bar_top)
+check('tray keeps side margins',
+      tray[0] == ck.SIDE_MARGIN and tray[2] == 400 - 2 * ck.SIDE_MARGIN)
+above = ck.panel_frame(console, tray_showing=True)
+check('panel stops above the tray', above[1] + above[3] == tray[1] - ck.TRAY_GAP)
+short_above = ck.panel_frame(console, height=200, tray_showing=True)
+check('fixed height sits on the tray',
+      short_above[3] == 200 and short_above[1] + short_above[3] == tray[1] - ck.TRAY_GAP)
+
+first = ck.square_origin(0)
+second = ck.square_origin(1)
+check('squares run left to right',
+      second[1] == first[1] and second[0] - first[0] == ck.SQUARE_SIZE + ck.SQUARE_GAP)
+check('square fits the tray height',
+      first[1] == ck.TRAY_PADDING and 2 * ck.TRAY_PADDING + ck.SQUARE_SIZE == ck.TRAY_HEIGHT)
+check('empty tray has no content', ck.tray_content_width(0) == 0)
+check('tray content fits its squares',
+      ck.tray_content_width(3) == 2 * ck.TRAY_PADDING + 3 * ck.SQUARE_SIZE + 2 * ck.SQUARE_GAP)
 
 check('square shows the icon', ck.square_label('Timer', '⏱') == '⏱')
 check('square shows the first letter', ck.square_label(' timer') == 'T')

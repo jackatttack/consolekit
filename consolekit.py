@@ -5,14 +5,18 @@
     panel = consolekit.dock(my_view, title='Timer', icon='⏱')
     consolekit.show('text, HTML, a ui.Image, a PIL image or a matplotlib figure')
 
-    panel.minimise()        # fade down to a small square; tap it to come back
+    panel.minimise()        # tuck it into the tray; tap its square to bring it back
     panel.restore()
     panel.close()
     consolekit.close_all()
 
+One panel is open at a time: opening one tucks the others into a tray
+along the bottom of the console, so nothing overlaps. Pass
+exclusive=False to let a panel open alongside the others.
+
 Rerun-safe: panels are keyed by title (or key=), so running a script again
 replaces its panel instead of stacking another, and a minimised panel comes
-back minimised. Several minimised panels stack up the console's right edge.
+back minimised.
 
 Your view keeps working after the script ends: actions fire and update()
 keeps ticking. Where there is no console to dock in (PythonIDE, or a
@@ -39,12 +43,14 @@ except ImportError:  # no Objective-C bridge: panels can only be sheets
     def on_main_thread(function):
         return function
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 # --- Look (edit freely) ------------------------------------------------------
 COLOURS = {
+    'backdrop': '#0d0e11',
     'panel': '#16181d',
     'header': '#1e2128',
+    'tray': '#1a1c22',
     'edge': '#2c303a',
     'accent': '#e8335a',
     'text': '#e6e6e6',
@@ -56,23 +62,27 @@ HEADER_HEIGHT = 40
 SQUARE_SIZE = 40
 SQUARE_GAP = 8
 SQUARE_RADIUS = 10
-SQUARE_BACKGROUND = (0.12, 0.13, 0.16, 0.85)   # a little see-through over content
+TRAY_PADDING = 6
+TRAY_HEIGHT = SQUARE_SIZE + 2 * TRAY_PADDING
+TRAY_GAP = 8                 # between the tray and the open panel above it
+TRAY_RADIUS = 14
 
 # --- Layout (points) ---------------------------------------------------------
 SIDE_MARGIN = 12
 TOP_MARGIN = 8
-INPUT_BAR_CLEARANCE = 90     # keeps panels and squares above the input bar
+INPUT_BAR_CLEARANCE = 90     # keeps panels and the tray above the input bar
 MINIMUM_PANEL_HEIGHT = 120
 SHEET_SIZE = (540, 480)      # the fallback when there is no console
 
 # --- Motion (seconds) --------------------------------------------------------
 ANIMATION_SECONDS = 0.25
 SLIDE_DISTANCE = 16
-CLOCK_SECONDS = 0.5          # how often a panel checks the console's size
+CLOCK_SECONDS = 0.5          # how often panels check the console's size
 
 # --- Internal names: keep stable so a newer version can clean up an older one -
 PANELS_NAME = '_consolekit_panels'   # key -> live Panel
 STATE_NAME = '_consolekit_state'     # key -> {'minimised': bool}
+PARTS_NAME = '_consolekit_parts'     # the shared tray, backdrop and console
 VIEW_TAG = 0x434B4954                # 'CKIT': marks every docked view
 DARK_INTERFACE = 2                   # UIUserInterfaceStyleDark
 DEFAULT_KEY = 'consolekit'
@@ -80,19 +90,20 @@ DEFAULT_KEY = 'consolekit'
 
 # --- Public API --------------------------------------------------------------
 def dock(view, title=None, key=None, height=None, icon=None, chrome=True,
-         on_close=None):
+         exclusive=True, on_close=None):
     """Dock view in the console and return its Panel.
 
-    title   shown in the header; also the default key
-    key     names the panel; docking the same key again replaces it
-    height  points tall, sitting on the input bar; None fills the console
-    icon    text or emoji for the minimised square (default: title's first letter)
-    chrome  False drops the header (no minimise or close buttons)
-    on_close  called with the panel when it closes
+    title      shown in the header; also the default key
+    key        names the panel; docking the same key again replaces it
+    height     points tall, sitting above the tray; None fills the console
+    icon       text or emoji for its square in the tray (default: title's first letter)
+    chrome     False drops the header (no minimise or close buttons)
+    exclusive  True tucks other open panels into the tray when this one opens
+    on_close   called with the panel when it closes
     """
     key = key or title or DEFAULT_KEY
     close(key)
-    panel = Panel(view, title, key, height, icon, chrome, on_close)
+    panel = Panel(view, title, key, height, icon, chrome, exclusive, on_close)
     live_panels()[key] = panel
     attach(panel)
     if not panel.docked:
@@ -122,9 +133,11 @@ def close(key):
 
 @on_main_thread
 def close_all():
-    """Close every panel, including strays left by an older version."""
+    """Close every panel, the tray and the backdrop, including strays left
+    by an older version."""
     for panel in list(live_panels().values()):
         panel.close()
+    remove_parts()
     text_view = find_console_text_view()
     if text_view is not None:
         for subview in list(text_view.superview().subviews()):
@@ -190,22 +203,35 @@ def default_title(thing):
 
 
 # --- Layout maths (pure, tested headless) ------------------------------------
-def panel_frame(console_frame, height=None):
-    """An expanded panel's frame, in the console container's coordinates."""
+def panel_frame(console_frame, height=None, tray_showing=False):
+    """An open panel's frame, in the console container's coordinates."""
     x, y, width, console_height = console_frame
     bottom = y + console_height - INPUT_BAR_CLEARANCE
+    if tray_showing:
+        bottom -= TRAY_HEIGHT + TRAY_GAP
     top = y + TOP_MARGIN
     panel_top = top if height is None else max(top, bottom - height)
     panel_height = max(bottom - panel_top, MINIMUM_PANEL_HEIGHT)
     return (x + SIDE_MARGIN, panel_top, width - 2 * SIDE_MARGIN, panel_height)
 
 
-def square_origin(console_frame, slot):
-    """Where minimised square number slot sits: up the right edge from the bottom."""
+def tray_frame(console_frame):
+    """The tray: one row along the bottom, just above the input bar."""
     x, y, width, height = console_frame
-    left = x + width - SIDE_MARGIN - SQUARE_SIZE
     bottom = y + height - INPUT_BAR_CLEARANCE
-    return (left, bottom - SQUARE_SIZE - slot * (SQUARE_SIZE + SQUARE_GAP))
+    return (x + SIDE_MARGIN, bottom - TRAY_HEIGHT, width - 2 * SIDE_MARGIN, TRAY_HEIGHT)
+
+
+def square_origin(slot):
+    """Where square number slot sits inside the tray, left to right."""
+    return (TRAY_PADDING + slot * (SQUARE_SIZE + SQUARE_GAP), TRAY_PADDING)
+
+
+def tray_content_width(count):
+    """How wide count squares are; the tray scrolls sideways past its width."""
+    if count == 0:
+        return 0
+    return 2 * TRAY_PADDING + count * SQUARE_SIZE + (count - 1) * SQUARE_GAP
 
 
 def square_label(title, icon=None):
@@ -216,21 +242,30 @@ def square_label(title, icon=None):
 
 
 # --- Live state, parked on builtins ------------------------------------------
+def shared(name):
+    value = getattr(builtins, name, None)
+    if value is None:
+        value = {}
+        setattr(builtins, name, value)
+    return value
+
+
 def live_panels():
-    panels = getattr(builtins, PANELS_NAME, None)
-    if panels is None:
-        panels = {}
-        setattr(builtins, PANELS_NAME, panels)
-    return panels
+    return shared(PANELS_NAME)
+
+
+def parts():
+    """The shared tray, backdrop, console text view and its last frame."""
+    return shared(PARTS_NAME)
 
 
 def remembered(key):
     """Per-key state that outlives reruns until Pythonista quits."""
-    state = getattr(builtins, STATE_NAME, None)
-    if state is None:
-        state = {}
-        setattr(builtins, STATE_NAME, state)
-    return state.setdefault(key, {'minimised': False})
+    return shared(STATE_NAME).setdefault(key, {'minimised': False})
+
+
+def docked_panels():
+    return [panel for panel in live_panels().values() if panel.docked]
 
 
 # --- Finding the console -----------------------------------------------------
@@ -268,31 +303,120 @@ def find_console_text_view():
     return None
 
 
+def read_frame(text_view):
+    frame = text_view.frame()
+    return (frame.origin.x, frame.origin.y, frame.size.width, frame.size.height)
+
+
+# --- The shared tray and backdrop --------------------------------------------
+def prepare(view):
+    native = view.objc_instance
+    native.setTag_(VIEW_TAG)
+    # Always drawn dark. Under a light theme UIKit would otherwise use light
+    # defaults inside (black text on the dark panel).
+    native.setOverrideUserInterfaceStyle_(DARK_INTERFACE)
+    return native
+
+
+def make_backdrop():
+    view = ui.View()
+    view.background_color = COLOURS['backdrop']
+    view.alpha = 0
+    return view
+
+
+def make_tray():
+    tray = ui.ScrollView()
+    tray.background_color = COLOURS['tray']
+    tray.border_color = COLOURS['edge']
+    tray.border_width = 1
+    tray.corner_radius = TRAY_RADIUS
+    tray.shows_horizontal_scroll_indicator = False
+    tray.shows_vertical_scroll_indicator = False
+    tray.alpha = 0
+    return tray
+
+
+def ensure_parts(text_view):
+    """Create the backdrop and tray beside the console, once."""
+    store = parts()
+    container = text_view.superview()
+    backdrop = store.get('backdrop')
+    if backdrop is None or backdrop.objc_instance.superview() is None:
+        backdrop = make_backdrop()
+        # Just above the console text, below Pythonista's input bar and
+        # anything else it draws over the text.
+        container.insertSubview_aboveSubview_(prepare(backdrop), text_view)
+        store['backdrop'] = backdrop
+    tray = store.get('tray')
+    if tray is None or tray.objc_instance.superview() is None:
+        tray = make_tray()
+        container.addSubview_(prepare(tray))
+        store['tray'] = tray
+    store['text_view'] = text_view
+    store['frame'] = read_frame(text_view)
+
+
+def remove_parts():
+    store = parts()
+    for name in ('tray', 'backdrop'):
+        view = store.get(name)
+        if view is not None:
+            try:
+                view.objc_instance.removeFromSuperview()
+            except Exception:
+                pass
+    store.clear()
+
+
+def relayout(animated=True):
+    """Fit the tray, its squares, the open panels and the backdrop to the console."""
+    store = parts()
+    tray, backdrop, frame = store.get('tray'), store.get('backdrop'), store.get('frame')
+    if tray is None or backdrop is None or frame is None:
+        return
+    docked = docked_panels()
+    tucked = [panel for panel in docked if panel.minimised]
+    showing = [panel for panel in docked if not panel.minimised]
+
+    tray.frame = tray_frame(frame)
+    for slot, panel in enumerate(tucked):
+        x, y = square_origin(slot)
+        panel.square.frame = (x, y, SQUARE_SIZE, SQUARE_SIZE)
+    for panel in docked:
+        panel.square.hidden = not panel.minimised
+    tray.content_size = (tray_content_width(len(tucked)), TRAY_HEIGHT)
+    backdrop.frame = frame
+
+    def settle():
+        tray.alpha = 1 if tucked else 0
+        backdrop.alpha = 1 if showing else 0
+        for panel in showing:
+            panel.frame = panel_frame(frame, panel.requested_height, bool(tucked))
+    if animated:
+        ui.animate(settle, ANIMATION_SECONDS)
+    else:
+        settle()
+
+
 # --- Docking -----------------------------------------------------------------
 @on_main_thread
 def attach(panel):
-    """Add the panel and its square beside the console. Sets panel.docked."""
+    """Add the panel beside the console and its square to the tray.
+    Sets panel.docked."""
     text_view = find_console_text_view()
     if text_view is None:
         return
-    container = text_view.superview()
-    panel.console_text_view = text_view
-    for view in (panel, panel.square):
-        native = view.objc_instance
-        native.setTag_(VIEW_TAG)
-        # Panels are always drawn dark. Under a light theme UIKit would
-        # otherwise use light defaults inside them (black text on dark).
-        native.setOverrideUserInterfaceStyle_(DARK_INTERFACE)
-        container.addSubview_(native)
+    ensure_parts(text_view)
+    text_view.superview().addSubview_(prepare(panel))
+    parts()['tray'].add_subview(panel.square)
     panel.docked = True
-    panel.fit(panel.read_console_frame())
     if remembered(panel.key)['minimised']:
         panel.minimised = True
         panel.alpha = 0
-        panel.square.alpha = 1
-        arrange_squares()
+        relayout(animated=False)
     else:
-        panel.slide_in()
+        panel.open()
 
 
 def present_as_sheet(panel):
@@ -308,29 +432,14 @@ def present_as_sheet(panel):
         panel.present('sheet')
 
 
-def arrange_squares():
-    """Stack every minimised panel's square up the right edge, in dock order."""
-    slot = 0
-    for panel in live_panels().values():
-        if not (panel.docked and panel.minimised and panel.last_console_frame):
-            continue
-        x, y = square_origin(panel.last_console_frame, slot)
-        panel.square.frame = (x, y, SQUARE_SIZE, SQUARE_SIZE)
-        native = panel.square.objc_instance
-        superview = native.superview()
-        if superview is not None:
-            superview.bringSubviewToFront_(native)
-        slot += 1
-
-
 # --- Views -------------------------------------------------------------------
 class Square(ui.View):
-    """A minimised panel. A tap brings the panel back."""
+    """A minimised panel in the tray. A tap brings the panel back."""
 
     def __init__(self, panel, text):
         self.panel = panel
-        self.alpha = 0
-        self.background_color = SQUARE_BACKGROUND
+        self.hidden = True
+        self.background_color = COLOURS['header']
         self.border_color = COLOURS['accent']
         self.border_width = 2
         self.corner_radius = SQUARE_RADIUS
@@ -350,17 +459,16 @@ class Square(ui.View):
 
 
 class Panel(ui.View):
-    """One docked panel: an optional header, your view, and a minimised square."""
+    """One docked panel: an optional header, your view, and its tray square."""
 
-    def __init__(self, content, title, key, height, icon, chrome, on_close):
+    def __init__(self, content, title, key, height, icon, chrome, exclusive, on_close):
         self.content = content
         self.key = key
         self.requested_height = height
+        self.exclusive = exclusive
         self.on_close = on_close
         self.docked = False
         self.minimised = False
-        self.console_text_view = None
-        self.last_console_frame = None
         self.background_color = COLOURS['panel']
         self.border_color = COLOURS['edge']
         self.border_width = 1
@@ -410,22 +518,16 @@ class Panel(ui.View):
         self.content.frame = (0, top, self.width, self.height - top)
 
     # --- Following the console -------------------------------------------------
-    def read_console_frame(self):
-        if self.console_text_view is None:
-            return None
-        frame = self.console_text_view.frame()
-        return (frame.origin.x, frame.origin.y, frame.size.width, frame.size.height)
-
     def update(self):
-        """The clock: refit when the console changes size (rotation, iPad split)."""
-        frame = self.read_console_frame()
-        if frame is not None and frame != self.last_console_frame:
-            self.fit(frame)
-
-    def fit(self, console_frame):
-        self.last_console_frame = console_frame
-        self.frame = panel_frame(console_frame, self.requested_height)
-        arrange_squares()
+        """The clock: refit everything when the console changes size."""
+        store = parts()
+        text_view = store.get('text_view')
+        if not self.docked or text_view is None:
+            return
+        frame = read_frame(text_view)
+        if frame != store.get('frame'):
+            store['frame'] = frame
+            relayout(animated=False)
 
     def bring_to_front(self):
         native = self.objc_instance
@@ -434,47 +536,49 @@ class Panel(ui.View):
             superview.bringSubviewToFront_(native)
 
     # --- Motion ----------------------------------------------------------------
-    def slide_in(self):
-        x, y, width, height = self.frame
+    def open(self):
+        """Show this panel. An exclusive one tucks the other open panels away."""
+        self.minimised = False
+        remembered(self.key)['minimised'] = False
+        if self.exclusive:
+            for other in docked_panels():
+                if other is not self and not other.minimised:
+                    other.tuck()
+        self.bring_to_front()
+        tray_showing = any(panel.minimised for panel in docked_panels())
+        target = panel_frame(parts()['frame'], self.requested_height, tray_showing)
+        x, y, width, height = target
         self.frame = (x, y + SLIDE_DISTANCE, width, height)
-        self.alpha = 0
 
         def arrive():
-            self.frame = (x, y, width, height)
+            self.frame = target
             self.alpha = 1
         ui.animate(arrive, ANIMATION_SECONDS)
+        relayout()
 
-    @on_main_thread
-    def minimise(self):
-        """Fade down to the square. A view at alpha 0 takes no touches."""
-        if not self.docked or self.minimised:
-            return
+    def tuck(self):
+        """Fade down into the tray. A view at alpha 0 takes no touches."""
         self.minimised = True
         remembered(self.key)['minimised'] = True
-        arrange_squares()
         x, y, width, height = self.frame
 
         def leave():
             self.alpha = 0
             self.frame = (x, y + SLIDE_DISTANCE, width, height)
-            self.square.alpha = 1
         ui.animate(leave, ANIMATION_SECONDS)
+
+    @on_main_thread
+    def minimise(self):
+        if not self.docked or self.minimised:
+            return
+        self.tuck()
+        relayout()
 
     @on_main_thread
     def restore(self):
         if not self.docked or not self.minimised:
             return
-        self.minimised = False
-        remembered(self.key)['minimised'] = False
-        self.bring_to_front()
-        arrange_squares()
-        target = panel_frame(self.last_console_frame, self.requested_height)
-
-        def arrive():
-            self.alpha = 1
-            self.frame = target
-            self.square.alpha = 0
-        ui.animate(arrive, ANIMATION_SECONDS)
+        self.open()
 
     # --- Closing ---------------------------------------------------------------
     def close_by_user(self):
@@ -485,16 +589,23 @@ class Panel(ui.View):
     def close(self):
         """Remove the panel and its square. Never raises."""
         self.update_interval = 0
+        was_docked = self.docked
         try:
-            if self.docked:
-                self.square.objc_instance.removeFromSuperview()
+            if was_docked:
+                if self.square.superview is not None:
+                    self.square.superview.remove_subview(self.square)
                 self.objc_instance.removeFromSuperview()
             elif self.on_screen:
                 ui.View.close(self)
         except Exception:
             pass
+        self.docked = False
         self.forget()
-        arrange_squares()
+        if was_docked:
+            if docked_panels():
+                relayout()
+            else:
+                remove_parts()
         if self.on_close is not None:
             try:
                 self.on_close(self)

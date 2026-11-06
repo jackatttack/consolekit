@@ -1,7 +1,8 @@
 """ConsoleKit demo: run this, then tap an example to dock it in the console.
 
 Each example is a short script in the examples folder. Open one, change
-it, and run it again.
+it, and run it again. Opening an example tucks this menu into the tray;
+tap its square to come back.
 """
 import os
 import runpy
@@ -30,7 +31,6 @@ class Menu(ui.View):
         self.run_path = runpy.run_path
         self.examples_folder = os.path.join(HERE, 'examples')
         self.join = os.path.join
-        self.panel = None
         self.buttons = []
         for icon, name, file_name in EXAMPLES:
             button = ui.Button()
@@ -44,8 +44,6 @@ class Menu(ui.View):
             self.buttons.append(button)
 
     def run_example(self, file_name):
-        if self.panel is not None:
-            self.panel.minimise()
         self.run_path(self.join(self.examples_folder, file_name), run_name='__main__')
 
     def layout(self):
@@ -54,7 +52,6 @@ class Menu(ui.View):
                             self.width - 2 * GAP, ROW_HEIGHT)
 
 
-menu = Menu()
 height = consolekit.HEADER_HEIGHT + GAP + len(EXAMPLES) * (ROW_HEIGHT + GAP)
-menu.panel = consolekit.dock(menu, title='ConsoleKit demo', icon='🧰', height=height)
+consolekit.dock(Menu(), title='ConsoleKit demo', icon='🧰', height=height)
 print('Tap an example in the panel. Each one is a short script in examples/.')
