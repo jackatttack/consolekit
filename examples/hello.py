@@ -1,11 +1,4 @@
-"""The smallest consolekit panel: one label in the console."""
-import ui
-
+"""The smallest consolekit app: one line puts a panel in the console."""
 import consolekit
 
-label = ui.Label()
-label.text = 'Hello from the console 👋'
-label.alignment = ui.ALIGN_CENTER
-label.text_color = 'white'
-
-consolekit.dock(label, title='Hello', height=140)
+consolekit.show('Hello from the console 👋', title='Hello')

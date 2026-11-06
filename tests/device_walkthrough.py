@@ -8,6 +8,7 @@ again. They are also saved to device_walkthrough.log beside this file.
 
 Afterwards it lists the few things only your eyes and fingers can check.
 """
+import builtins
 import os
 import sys
 import time
@@ -102,6 +103,8 @@ def walk():
         check('found the console (run this in Pythonista, from the editor)', False)
         return
     start_inset = start['inset']
+    landing = getattr(builtins, '_forge_landing', None)
+    check('note: Forge Landing docked at the start: %s' % ('yes' if landing is not None else 'no'), True)
 
     # One panel.
     first = ck.dock(label('A'), title='Walk A', icon='A', height=160)
@@ -121,7 +124,9 @@ def walk():
     check("A's square shows in the tray", a['square'] and state['tray'] == 1)
     check('B sits above the tray',
           b['frame'][1] + b['frame'][3] <= state['tray_top'] - ck.TRAY_GAP + 0.5)
-    check('the console inset grows to clear the tray', state['inset'] > start_inset)
+    needed = ck.INPUT_BAR_CLEARANCE + ck.TRAY_HEIGHT + ck.TRAY_GAP
+    check('the console inset clears the tray (%.0f, needs at least %.0f)'
+          % (state['inset'], needed), state['inset'] >= needed - 0.5)
 
     # What a tap on A's square does.
     first.square.touch_ended(None)
@@ -184,9 +189,15 @@ def walk():
     tapped = []
     tools = ck.dock(label('E'), title='Walk button', height=140)
     button = tools.add_button('★', tapped.append)
+    same = tools.add_button('★', tapped.append)
+    check('the same symbol again reuses its button',
+          same is button and len(tools.extra_buttons) == 1)
     pause()
     button.action(button)
     check('an added header button calls its action with the panel', tapped == [tools])
+    tools.show('three')
+    pause()
+    check('panel.show() swaps in new content', tools.content.text == 'three')
 
     # Tidy up.
     ck.close_all()
@@ -194,7 +205,8 @@ def walk():
     state = snapshot()
     check('close_all leaves no panels', not state['panels'])
     check('close_all leaves no stray views', state['tagged'] == 0)
-    check('the console inset is given back', abs(state['inset'] - start_inset) < 0.5)
+    check('the console inset is given back (%.0f at the start, %.0f now)'
+          % (start_inset, state['inset']), abs(state['inset'] - start_inset) < 0.5)
 
 
 def report():

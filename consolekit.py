@@ -25,7 +25,8 @@ keeps ticking. Where there is no console to dock in (PythonIDE, or a
 Pythonista update that moves its views), dock() presents the panel as a
 sheet instead, so scripts never break.
 
-Extending: panel.add_button() puts your own button in the header,
+Extending: panel.show() puts anything show() takes into that panel,
+panel.add_button() puts your own button in the header,
 panel.set_content() swaps the view, and your view can define
 panel_opened(panel), panel_tucked(panel) and panel_closed(panel) to hear
 what happens to its panel.
@@ -53,7 +54,7 @@ except ImportError:  # no Objective-C bridge: panels can only be sheets
     def on_main_thread(function):
         return function
 
-__version__ = '1.2.0'
+__version__ = '1.3.0'
 __all__ = ['dock', 'show', 'get', 'close', 'close_all', 'Panel', 'COLOURS']
 
 # --- Look (edit freely, before docking your first panel) -----------------------
@@ -78,6 +79,8 @@ TRAY_HEIGHT = SQUARE_SIZE + 2 * TRAY_PADDING
 TRAY_GAP = 8                 # between the tray and the open panel above it
 TRAY_RADIUS = 14
 STACK_GAP = 8                # between open panels stacked with exclusive=False
+BIG_TEXT_LIMIT = 40          # show() draws one line up to this long big and centred
+BIG_TEXT_SIZE = 48           # its starting size; it shrinks to fit the panel
 
 # Dark style for HTML fragments given to show(); full pages keep their own.
 PAGE_STYLE = ('<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -203,6 +206,8 @@ def view_for(thing):
         view = ui.WebView()
         view.load_html(page_html(text))
         return view
+    if is_short_line(text):
+        return big_label(text.strip())
     view = ui.TextView()
     view.text = text
     view.editable = False
@@ -256,6 +261,27 @@ def caller_frame():
 def looks_like_html(text):
     stripped = text.strip()
     return stripped.startswith('<') and stripped.endswith('>')
+
+
+def is_short_line(text):
+    """One short line reads best big and centred, like a display."""
+    stripped = text.strip()
+    return bool(stripped) and '\n' not in stripped and len(stripped) <= BIG_TEXT_LIMIT
+
+
+def big_label(text):
+    """A big centred label that shrinks to fit rather than cutting text off."""
+    label = ui.Label()
+    label.text = text
+    label.alignment = ui.ALIGN_CENTER
+    label.font = (BOLD_FONT, BIG_TEXT_SIZE)
+    label.text_color = COLOURS['text']
+    label.background_color = COLOURS['panel']
+    if ObjCClass is not None:
+        native = label.objc_instance
+        native.setAdjustsFontSizeToFitWidth_(True)
+        native.setMinimumScaleFactor_(0.25)
+    return label
 
 
 def page_html(text):
@@ -689,12 +715,20 @@ class Panel(ui.View):
     def add_button(self, symbol, action):
         """Add a button to the header, left of the minimise button, and return it.
 
-        action is called with this panel when the button is tapped. Like any
-        callback that runs after your script ends, it should only use its
-        argument and names from imported modules.
+        action is called with this panel when the button is tapped. Adding a
+        symbol the header already has gives that button the new action
+        instead, so running a script again never doubles its buttons.
+
+        The action runs after your script has ended and its global names
+        are cleared, so it should only use the panel it is given (keep any
+        state on the panel: panel.score = 0) and builtins.
         """
         if self.header is None:
             raise ValueError('add_button needs the header: dock with chrome=True')
+        for button in self.extra_buttons:
+            if button.title == symbol:
+                button.action = lambda sender: self.run_action(action)
+                return button
         button = self.make_button(symbol, lambda sender: self.run_action(action))
         self.attach_header_button(button)
         return button
@@ -737,6 +771,12 @@ class Panel(ui.View):
             self.tell('panel_tucked' if self.minimised else 'panel_opened')
         elif self.on_screen:
             self.tell('panel_opened')
+
+    def show(self, thing):
+        """Show thing in this panel in place of what it shows now. Takes
+        anything consolekit.show() does: text, HTML, images, charts, views."""
+        self.set_content(view_for(thing))
+        return self
 
     @on_main_thread
     def set_height(self, height):

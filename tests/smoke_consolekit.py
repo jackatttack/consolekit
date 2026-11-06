@@ -100,11 +100,14 @@ check('a full page is left alone', ck.page_html(page) == page)
 
 view = ui.View()
 check('a view docks as itself', ck.view_for(view) is view)
-text_view = ck.view_for('hello')
-check('text becomes a read-only TextView',
+text_view = ck.view_for('line one\nline two')
+check('longer text becomes a read-only TextView',
       isinstance(text_view, ui.TextView) and not text_view.editable)
+check('one short line becomes a big label', isinstance(ck.view_for('7 × 8'), ui.Label))
+check('a long single line stays a TextView', isinstance(ck.view_for('x' * 200), ui.TextView))
+check('blank text stays a TextView', isinstance(ck.view_for('   '), ui.TextView))
 check('numbers become text', ck.view_for(42).text == '42')
-check('a missing .pyui path shows as text', isinstance(ck.view_for('gone.pyui'), ui.TextView))
+check('a missing .pyui path shows as text', isinstance(ck.view_for('gone.pyui'), ui.Label))
 image = ui.Image.named('test:Lenna')
 check('a ui.Image becomes an ImageView', isinstance(ck.view_for(image), ui.ImageView))
 
@@ -162,10 +165,16 @@ def lifecycle():
     results['an added button sits left of minimise'] = button.x < panel.minimise_button.x
     results['the title makes room for the added button'] = (
         panel.title_label.width == 300 - 3 * ck.HEADER_HEIGHT - 14)
+    again = panel.add_button('★', lambda panel: None)
+    results['adding the same symbol reuses its button'] = (
+        again is button and len(panel.extra_buttons) == 1)
     panel.set_content(second_content)
     results['set_content swaps the view'] = (
         panel.content is second_content and second_content.superview is panel)
     results['the old view hears panel_closed'] = first_content.calls == ['closed']
+    panel.show('7 × 8')
+    results['panel.show swaps in a view for anything'] = (
+        isinstance(panel.content, ui.Label) and panel.content.text == '7 × 8')
     panel.close()
     panel.close()
     results['on_close runs once for two closes'] = closed == [panel]

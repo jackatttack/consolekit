@@ -35,7 +35,8 @@ Run `ConsoleKit/consolekit_demo.py` and tap an example. Each one is a short scri
 
 | Example | Shows you |
 |---|---|
-| `hello.py` | the smallest panel: one label |
+| `hello.py` | the smallest app: one line |
+| `flash_cards.py` | a times-table quiz in a dozen lines, with header buttons |
 | `counter.py` | buttons that do something |
 | `stopwatch.py` | a live view that keeps ticking, and rests while tucked away |
 | `notes.py` | typing in a panel, plus your own header button |
@@ -67,7 +68,7 @@ If you just want to look at something, `show()` picks a view for you:
     consolekit.show(plt)                  # the current matplotlib chart
     consolekit.show('my_panel.pyui')      # a view made in the UI designer
 
-It handles text, HTML, `ui.Image`, PIL images, matplotlib figures and `.pyui` files. An HTML fragment gets a dark style to match the panel.
+It handles text, HTML, `ui.Image`, PIL images, matplotlib figures and `.pyui` files. One short line of text shows big and centred, like a display; longer text scrolls. An HTML fragment gets a dark style to match the panel.
 
 Calling `show()` again with the same title updates that panel in place, so it works inside a loop:
 
@@ -97,8 +98,9 @@ On a panel:
 
 - `panel.minimise()`, `panel.restore()` and `panel.close()`
 - `panel.set_title(text)` and `panel.set_height(points)`
+- `panel.show(thing)` shows anything `show()` takes in this panel, in place of what was there
 - `panel.set_content(view)` swaps the view inside, keeping the panel where it is
-- `panel.add_button(symbol, action)` adds a button to the header; `action` is called with the panel
+- `panel.add_button(symbol, action)` adds a button to the header; `action` is called with the panel. Adding the same symbol again just gives it the new action, so reruns never double up.
 - `panel.content` is the view you docked
 
 ## Extending
@@ -118,7 +120,7 @@ consolekit is one file with no dependencies, so you can also copy `consolekit.py
 
 ## Good to know
 
-- **Keep what your panel needs on `self`.** When your script finishes, Pythonista clears its variables, but your panel keeps running. Inside button actions and `update()`, use things you stored on `self` rather than the script's global names. The counter and stopwatch examples show how. For a bigger panel, put its class in a module of its own and import it: an imported module keeps its names.
+- **Keep what your panel needs on `self`.** When your script finishes, Pythonista clears its variables, but your panel keeps running. Inside button actions and `update()`, use things you stored on `self`, or on the panel itself (`panel.deck = ...`), rather than the script's global names. The flash cards, counter and stopwatch examples show how. For a bigger panel, put its class in a module of its own and import it: an imported module keeps its names.
 - **Panels are matched by title** (or `key`), so give two panels different titles if you want both.
 - **One panel is open at a time** unless you pass `exclusive=False`. Opening a panel tucks the others into the tray. Tap a square to switch back; drag the tray sideways when it fills up.
 - **Panels last until you close them** or quit Pythonista.

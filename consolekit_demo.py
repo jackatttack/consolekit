@@ -14,6 +14,7 @@ import consolekit
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXAMPLES = (
     ('👋', 'Hello', 'hello.py'),
+    ('✖️', 'Flash cards', 'flash_cards.py'),
     ('🔢', 'Counter', 'counter.py'),
     ('⏱', 'Stopwatch', 'stopwatch.py'),
     ('📝', 'Notes', 'notes.py'),
