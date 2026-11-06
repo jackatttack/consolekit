@@ -1,16 +1,14 @@
 """A live stopwatch docked in the console.
 
-update() keeps ticking after the script ends. Minimise it with the header
-button; tap the square to bring it back.
+update() keeps ticking after the script ends. The panel_opened and
+panel_tucked hooks let it skip redrawing while it waits in the tray; the
+time keeps counting. Minimise it with the header button, tap its square
+to bring it back.
 """
-import os
-import sys
 import time
 
 import ui
 
-# Finds consolekit.py one folder up, so the examples run from this folder.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import consolekit
 
 
@@ -20,6 +18,7 @@ class Stopwatch(ui.View):
         # when it ends, but update() keeps running.
         self.clock = time.time
         self.started = self.clock()
+        self.showing = True
         self.label = ui.Label()
         self.label.font = ('Menlo-Bold', 40)
         self.label.alignment = ui.ALIGN_CENTER
@@ -31,7 +30,15 @@ class Stopwatch(ui.View):
         self.label.frame = self.bounds
 
     def update(self):
-        self.label.text = '%.1f s' % (self.clock() - self.started)
+        if self.showing:
+            self.label.text = '%.1f s' % (self.clock() - self.started)
+
+    # consolekit calls these when your view has them.
+    def panel_opened(self, panel):
+        self.showing = True
+
+    def panel_tucked(self, panel):
+        self.showing = False
 
 
 consolekit.dock(Stopwatch(), title='Stopwatch', icon='⏱', height=160)

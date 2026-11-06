@@ -30,7 +30,9 @@ LAUNCHER = "consolekit_demo.py"
 LIBRARY_FILE = "consolekit.py"
 
 # Files earlier releases shipped that are gone now; an update removes them.
-RETIRED_FILES = ()
+# Until 1.2.0 a copy of consolekit.py sat in the ConsoleKit folder, where it
+# shadowed the site-packages copy for scripts run from that folder.
+RETIRED_FILES = ("consolekit.py",)
 
 
 def documents():
@@ -65,9 +67,11 @@ def download_release(work_dir):
 
 
 def install_examples(release, target):
-    """Replace every top-level item the release ships; leave anything else."""
+    """Replace every top-level item the release ships, except the library
+    itself (that lives only in site-packages-3); leave anything else."""
     os.makedirs(target, exist_ok=True)
-    shipped = sorted(name for name in os.listdir(release) if not name.startswith("."))
+    shipped = sorted(name for name in os.listdir(release)
+                     if not name.startswith(".") and name != LIBRARY_FILE)
     for name in shipped:
         source = os.path.join(release, name)
         destination = os.path.join(target, name)

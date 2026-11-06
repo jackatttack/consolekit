@@ -1,11 +1,6 @@
 """The smallest consolekit panel: one label in the console."""
-import os
-import sys
-
 import ui
 
-# Finds consolekit.py one folder up, so the examples run from this folder.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import consolekit
 
 label = ui.Label()
